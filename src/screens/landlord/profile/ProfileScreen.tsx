@@ -153,7 +153,11 @@ export function ProfileScreen() {
         <Animated.View entering={FadeInDown.delay(200).duration(500)}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
-            <LinkRow icon="create-outline" label="Edit Profile" />
+            <LinkRow
+              icon="create-outline"
+              label="Edit Profile"
+              onPress={() => router.push('/landlord/edit-profile')}
+            />
             <LinkRow icon="card-outline" label="Payout Account" />
             <LinkRow
               icon="settings-outline"
