@@ -22,6 +22,62 @@ WebBrowser.maybeCompleteAuthSession();
 type Mode = 'login' | 'signup';
 
 /**
+ * Google sign-in button. Isolated in its own component so the
+ * `Google.useAuthRequest` hook only runs when Google is actually configured:
+ * calling it without the client ID this platform requires (e.g. `webClientId`
+ * on web) throws and would otherwise crash the whole Login screen. When Google
+ * isn't configured this component is never mounted — a placeholder is shown.
+ */
+function GoogleSignInButton({
+  disabled,
+  onToken,
+}: {
+  disabled: boolean;
+  onToken: (accessToken: string) => void;
+}) {
+  const [request, response, promptGoogle] = Google.useAuthRequest(googleConfig);
+
+  // Handle the Google auth-session result once the browser flow returns.
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const accessToken = response.authentication?.accessToken;
+      if (accessToken) onToken(accessToken);
+    } else if (response?.type === 'error') {
+      Alert.alert('Google sign-in failed', 'The Google sign-in was cancelled or failed.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response]);
+
+  return (
+    <PrimaryButton
+      label="Continue with Google"
+      variant="outline"
+      onPress={() => void promptGoogle()}
+      disabled={disabled || !request}
+      leading={<Ionicons name="logo-google" size={20} color="#EA4335" />}
+    />
+  );
+}
+
+/** Placeholder shown when Google OAuth client IDs aren't configured. */
+function GoogleNotConfiguredButton({ disabled }: { disabled: boolean }) {
+  return (
+    <PrimaryButton
+      label="Continue with Google"
+      variant="outline"
+      disabled={disabled}
+      onPress={() =>
+        Alert.alert(
+          'Google sign-in not set up',
+          'Add your Google OAuth client IDs (EXPO_PUBLIC_GOOGLE_*) to a .env file to enable this.',
+        )
+      }
+      leading={<Ionicons name="logo-google" size={20} color="#EA4335" />}
+    />
+  );
+}
+
+/**
  * Login / Sign Up screen. The segmented control switches between modes, which
  * swaps the field set: Login = username, email, password; Sign Up = name,
  * username, phone, email, password. Reached from the Welcome screen with an
@@ -31,7 +87,6 @@ export function LoginScreen() {
   const router = useRouter();
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const { signIn, beginSignup, signInWithGoogle } = useAuth();
-  const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest(googleConfig);
 
   const [mode, setMode] = useState<Mode>(modeParam === 'signup' ? 'signup' : 'login');
   const [form, setForm] = useState({
@@ -98,28 +153,6 @@ export function LoginScreen() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // Handle the Google auth-session result once the browser flow returns.
-  useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      const accessToken = googleResponse.authentication?.accessToken;
-      if (accessToken) void handleGoogleToken(accessToken);
-    } else if (googleResponse?.type === 'error') {
-      Alert.alert('Google sign-in failed', 'The Google sign-in was cancelled or failed.');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleResponse]);
-
-  const onGoogle = () => {
-    if (!googleConfigured || !googleRequest) {
-      Alert.alert(
-        'Google sign-in not set up',
-        'Add your Google OAuth client IDs (EXPO_PUBLIC_GOOGLE_*) to a .env file to enable this.',
-      );
-      return;
-    }
-    void promptGoogle();
   };
 
   const notImplemented = () =>
@@ -234,13 +267,11 @@ export function LoginScreen() {
             </View>
 
             <View style={styles.social}>
-              <PrimaryButton
-                label="Continue with Google"
-                variant="outline"
-                onPress={onGoogle}
-                disabled={submitting}
-                leading={<Ionicons name="logo-google" size={20} color="#EA4335" />}
-              />
+              {googleConfigured ? (
+                <GoogleSignInButton disabled={submitting} onToken={handleGoogleToken} />
+              ) : (
+                <GoogleNotConfiguredButton disabled={submitting} />
+              )}
               <PrimaryButton
                 label="Continue with Apple"
                 variant="outline"

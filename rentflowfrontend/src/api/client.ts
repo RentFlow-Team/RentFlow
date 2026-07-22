@@ -1,4 +1,5 @@
 import { API_URL } from './config';
+import { demoEnabled, demoForced, demoRequest } from './demo';
 
 /** Error thrown for any non-2xx response or network failure. */
 export class ApiError extends Error {
@@ -29,6 +30,24 @@ export function getAuthToken() {
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
+/**
+ * Once a request fails at the network level we remember the backend is down and
+ * route every subsequent call straight to the demo data, so we don't pay a
+ * connection timeout on each request.
+ */
+let backendUnreachable = false;
+
+/**
+ * How long to wait for the backend before treating it as unreachable.
+ *
+ * A refused connection rejects immediately, but a *dropped* one never does — a
+ * firewall silently blocking port 8080, or the phone being on another network,
+ * leaves `fetch` hanging until the OS-level TCP timeout (a minute or more).
+ * That's the "app looks frozen" symptom demo mode exists to avoid, so we cap the
+ * wait ourselves and let the fallback take over.
+ */
+const REQUEST_TIMEOUT_MS = 8000;
+
 function parseBody(text: string): unknown {
   if (!text) return null;
   try {
@@ -50,9 +69,20 @@ function extractMessage(body: unknown, status: number): string {
 }
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  // Demo mode: skip the network when forced, or once we've learned the backend
+  // is unreachable, and serve canned data so the app stays fully usable offline.
+  if (demoForced || (demoEnabled && backendUnreachable)) {
+    return demoRequest<T>(method, path, body);
+  }
+
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
+  // Aborts the request if the backend doesn't respond in time; cleared as soon
+  // as the headers arrive so a slow body read is never cut short.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   let response: Response;
   try {
@@ -60,12 +90,22 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
   } catch {
+    // Genuine "can't reach the server" — refused, dropped, or timed out above.
+    // Fall back to demo data if allowed, otherwise surface the network error.
+    // Real HTTP errors below are never masked; only connection failures land here.
+    if (demoEnabled) {
+      backendUnreachable = true;
+      return demoRequest<T>(method, path, body);
+    }
     throw new ApiError(
       0,
       'Cannot reach the server. Check your connection and that the backend is running.',
     );
+  } finally {
+    clearTimeout(timeout);
   }
 
   const parsed = parseBody(await response.text());
