@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Brand } from '@/constants/brand';
 import { useAuth } from '@/store/auth';
-import { useLanguage } from '@/store/language';
+import { currencyOptions, useLanguage } from '@/store/language';
 
 import { styles } from './styles';
 
@@ -69,10 +69,18 @@ function ToggleRow({ icon, label, value, onValueChange, last }: ToggleRowProps) 
 export function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
-  const { t, toggleLanguage, language } = useLanguage();
+  const { t, toggleLanguage, language, currency, setCurrency } = useLanguage();
   const [rentReminders, setRentReminders] = useState(true);
   const [maintenanceUpdates, setMaintenanceUpdates] = useState(true);
   const [announcements, setAnnouncements] = useState(true);
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+
+  const currencyLabel = currencyOptions.find((option) => option.value === currency)?.label ?? 'GHS (GH₵)';
+
+  const chooseCurrency = (nextCurrency: (typeof currency)) => {
+    setCurrency(nextCurrency);
+    setCurrencyPickerVisible(false);
+  };
 
   const logOut = () => {
     signOut();
@@ -107,7 +115,7 @@ export function SettingsScreen() {
               value={language === 'en' ? 'English' : 'Français'}
               onPress={toggleLanguage}
             />
-            <LinkRow icon="cash-outline" label={t('currency')} value="GHS (GH₵)" last />
+            <LinkRow icon="cash-outline" label={t('currency')} value={currencyLabel} onPress={() => setCurrencyPickerVisible(true)} last />
           </View>
         </Animated.View>
 
@@ -155,6 +163,42 @@ export function SettingsScreen() {
 
         <Text style={styles.version}>RentFlow v1.0.0</Text>
       </ScrollView>
+
+      <Modal transparent visible={currencyPickerVisible} animationType="fade" onRequestClose={() => setCurrencyPickerVisible(false)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.45)', justifyContent: 'flex-end' }}
+          onPress={() => setCurrencyPickerVisible(false)}>
+          <View
+            style={{
+              backgroundColor: Brand.surface,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingHorizontal: 20,
+              paddingTop: 18,
+              paddingBottom: 28,
+            }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: Brand.textPrimary, marginBottom: 12 }}>
+              Choose currency
+            </Text>
+            {currencyOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() => chooseCurrency(option.value)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingVertical: 12,
+                }}>
+                <Text style={{ fontSize: 15, color: Brand.textPrimary }}>{option.label}</Text>
+                {currency === option.value ? (
+                  <Ionicons name="checkmark-circle" size={18} color={Brand.primary} />
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }

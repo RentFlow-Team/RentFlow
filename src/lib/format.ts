@@ -1,8 +1,28 @@
 /** Currency + number formatting helpers (Hermes lacks full Intl). */
 
+export type CurrencyCode = 'GHS' | 'USD' | 'EUR' | 'GBP';
+
+const currencySymbols: Record<CurrencyCode, string> = {
+  GHS: 'GH₵',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+};
+
+let activeCurrency: CurrencyCode = 'GHS';
+
+export function setActiveCurrency(currency: CurrencyCode) {
+  activeCurrency = currency;
+}
+
+export function getCurrencySymbol(currency: CurrencyCode = activeCurrency) {
+  return currencySymbols[currency];
+}
+
 /** 6600 → "GH₵ 6,600" */
 export function formatGhs(n: number) {
-  return `GH₵ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  const symbol = getCurrencySymbol();
+  return `${symbol} ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 }
 
 /** "GH₵ 6,000" → 6000 */

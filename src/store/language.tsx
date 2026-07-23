@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
+import { setActiveCurrency, type CurrencyCode } from '@/lib/format';
+
 export type AppLanguage = 'en' | 'fr';
+export type AppCurrency = CurrencyCode;
 
 export type TranslationKey =
   | 'welcomeTitle'
@@ -50,20 +53,35 @@ const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
   },
 };
 
+export const currencyOptions: Array<{ label: string; value: AppCurrency }> = [
+  { label: 'GHS (GH₵)', value: 'GHS' },
+  { label: 'USD ($)', value: 'USD' },
+  { label: 'EUR (€)', value: 'EUR' },
+  { label: 'GBP (£)', value: 'GBP' },
+];
+
 type LanguageContextValue = {
   language: AppLanguage;
   toggleLanguage: () => void;
   setLanguage: (next: AppLanguage) => void;
   t: (key: TranslationKey) => string;
+  currency: AppCurrency;
+  setCurrency: (next: AppCurrency) => void;
 };
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>('en');
+  const [currency, setCurrencyState] = useState<AppCurrency>('GHS');
 
   const setLanguage = useCallback((next: AppLanguage) => {
     setLanguageState(next);
+  }, []);
+
+  const setCurrency = useCallback((next: AppCurrency) => {
+    setCurrencyState(next);
+    setActiveCurrency(next);
   }, []);
 
   const toggleLanguage = useCallback(() => {
@@ -76,8 +94,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<LanguageContextValue>(
-    () => ({ language, toggleLanguage, setLanguage, t }),
-    [language, toggleLanguage, setLanguage, t],
+    () => ({ language, toggleLanguage, setLanguage, t, currency, setCurrency }),
+    [language, toggleLanguage, setLanguage, t, currency, setCurrency],
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
